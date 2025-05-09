@@ -1,24 +1,29 @@
-# Use Node.js base image
-FROM node:18
+# Use a base image that has both Node.js and Python
+FROM node:18-bullseye
 
 # Install Python, pip, and ffmpeg
 RUN apt-get update && apt-get install -y \
-    python3 python3-pip ffmpeg
+    python3 \
+    python3-pip \
+    ffmpeg
 
-# Install yt-dlp via pip
+# Confirm pip is available
+RUN python3 -m pip install --upgrade pip
+
+# Install yt-dlp
 RUN pip3 install yt-dlp
 
 # Set working directory
 WORKDIR /app
 
-# Copy everything into the container
+# Copy app files
 COPY . .
 
-# Install Node.js dependencies
+# Install Node dependencies
 RUN npm install
 
-# Expose the app port
+# Expose your app's port
 EXPOSE 8800
 
-# Start the server
+# Start your app
 CMD ["npm", "start"]
