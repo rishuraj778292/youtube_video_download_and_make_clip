@@ -1,44 +1,35 @@
-# Use a base image with Node.js and Python
-FROM node:18-bullseye
-
-# Install Python, pip, and ffmpeg with necessary libraries
-RUN apt-get update && apt-get install -y \
-    python3 \
-    python3-pip \
-    ffmpeg \
-    libx264-dev \
-    libvpx-dev \
-    libmp3lame-dev \
-    libopus-dev \
-    libx265-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# Adding the deb-multimedia repository for libfdk-aac-dev support
-RUN echo "deb http://www.deb-multimedia.org bullseye main" > /etc/apt/sources.list.d/deb-multimedia.list && \
-    apt-get update && \
-    apt-get install -y libfdk-aac-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-# Upgrade pip
-RUN python3 -m pip install --upgrade pip
+# Stage 1: Build the Node.js application
+FROM node:18-bullseye AS build
 
 # Set working directory
 WORKDIR /app
 
-# Create the clips directory inside the container
-RUN mkdir -p /app/clips
+# Install Python and required libraries
+RUN apt-get update && apt-get install -y \
+    python3 \
+    python3-pip \
+    wget \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy only the necessary files for npm install
+# Copy package.json and install dependencies
 COPY package*.json ./
-
-# Install Node dependencies
 RUN npm install
 
-# Now copy the rest of the app
+# Copy the rest of the application
 COPY . .
 
-# Expose your app's port
+# Stage 2: Use a lightweight image with ffmpeg for runtime
+FROM jrottenberg/ffmpeg:4.4-ubuntu AS runtime
+
+# Set working directory for runtime
+WORKDIR /app
+
+# Copy only the necessary artifacts from the build stage
+COPY --from=build /app /app
+
+# Expose the port your app is running on
 EXPOSE 8800
 
-# Start your app
+# Start the Node.js application
 CMD ["npm", "start"]
