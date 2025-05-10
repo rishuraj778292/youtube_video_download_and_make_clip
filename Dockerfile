@@ -19,11 +19,16 @@ RUN npm install
 # Copy the rest of the application
 COPY . .
 
-# Stage 2: Use a lightweight image with ffmpeg for runtime
-FROM jrottenberg/ffmpeg:4.4-ubuntu AS runtime
+# Stage 2: Use Node.js as base and install FFmpeg
+FROM node:18-slim AS runtime
 
 # Set working directory for runtime
 WORKDIR /app
+
+# Install FFmpeg
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
 
 # Copy only the necessary artifacts from the build stage
 COPY --from=build /app /app
