@@ -13,7 +13,7 @@ const __dirname = path.dirname(__filename);
 const makeclips = async (req, res) => {
     const { driveUrl, customText, clips } = req.body;
 
-    if (!driveUrl || !customText || !clips || !Array.isArray(clips)) {
+    if (!driveUrl || !customText || !clips || !Array.isArray(clips) || clips.some(clip => !clip.startTime || !clip.endTime)) {
         return res.status(400).send("Missing required fields or clips format incorrect");
     }
 
@@ -37,7 +37,8 @@ const makeclips = async (req, res) => {
         const response = await axios({
             url: downloadLink,
             method: "GET",
-            responseType: "stream"
+            responseType: "stream",
+            timeout: 60000 // Timeout of 60 seconds
         });
 
         await new Promise((resolve, reject) => {
@@ -69,7 +70,6 @@ const makeclips = async (req, res) => {
 
     const wrappedText = wrapText(customText);
     const logoPath = path.join(__dirname, "logo.png");
-    const fontPath = "C:/Windows/Fonts/arialbd.ttf"; // Ensure this path is valid on your system
 
     const generateClip = (clip, index) => {
         const { startTime, endTime } = clip;
@@ -82,18 +82,25 @@ const makeclips = async (req, res) => {
         const duration = timetoSecond(endTime) - timetoSecond(startTime);
         if (duration <= 0) throw new Error("Invalid time range");
 
-        const safeTextFilePath = path.join(outputDir, "text.txt");
+        const safeTextFilePath = path.normalize(path.join(outputDir, "text.txt"));
+
         fs.writeFileSync(safeTextFilePath, wrappedText);
 
-        const ffmpegCmd = `ffmpeg -ss ${startTime} -t ${duration} -i "${rawVideoPath}" -i "${logoPath}" -filter_complex "[0:v]scale=720:-1[vid]; color=color=black:size=720x1280:d=${duration}[bg]; [bg][vid]overlay=(W-w)/2:(H-h)/2[video_on_bg]; [video_on_bg][1:v]overlay=(W-w)/2:60[with_logo]; [with_logo]drawtext=textfile='${safeTextFilePath.replace(/\\/g, "\\\\").replace(/:/g, "\\:")}':fontfile='${fontPath.replace(/\\/g, "\\\\").replace(/:/g, "\\:")}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.5:boxborderw=10[outv]" -map "[outv]" -map 0:a? -y "${clipPath}"`;
+        // Ensure paths are properly escaped for FFmpeg
+        const escapedTextFilePath = safeTextFilePath.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
 
+        const ffmpegCmd = `ffmpeg -ss ${startTime} -t ${duration} -i "${rawVideoPath}" -i "${logoPath}" -filter_complex "[0:v]scale=720:-1[vid]; color=color=black:size=720x1280:d=${duration}[bg]; [bg][vid]overlay=(W-w)/2:(H-h)/2[video_on_bg]; [video_on_bg][1:v]overlay=(W-w)/2:60[with_logo]; [with_logo]drawtext=textfile='${escapedTextFilePath}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.5:boxborderw=10[outv]" -map "[outv]" -map 0:a? -y "${clipPath}"`;
 
         return new Promise((resolve, reject) => {
             exec(ffmpegCmd, (err, stdout, stderr) => {
                 if (err) {
                     console.error(`FFmpeg error for clip ${index + 1}:`, stderr);
+                    console.log(`FFmpeg output for clip ${index + 1}:`, stdout);
                     reject(`Failed to generate clip ${index + 1}`);
                 } else {
+                    console.log(`FFmpeg output for clip ${index + 1}:`, stdout);
+                    // Clean up the text file after use
+                    fs.unlinkSync(safeTextFilePath);
                     resolve(clipPath);
                 }
             });
@@ -113,22 +120,19 @@ const makeclips = async (req, res) => {
         await archive.finalize();
 
         output.on("close", () => {
-            fs.unlinkSync(rawVideoPath);
-            fs.rmSync(outputDir, { recursive: true, force: true });
+            fs.unlinkSync(rawVideoPath); // cleanup the original video
+            fs.rmSync(outputDir, { recursive: true, force: true }); // cleanup temporary files
 
+            // Ensure zip file is only sent after cleanup
             res.sendFile(zipPath, () => {
-                fs.unlinkSync(zipPath); // optional cleanup
+                fs.unlinkSync(zipPath); // optional cleanup after sending
             });
         });
     } catch (err) {
         console.error("Error during processing:", err);
-        if (fs.existsSync(rawVideoPath)) {
-            fs.unlinkSync(rawVideoPath);
-        }
-        if (fs.existsSync(outputDir)) {
-            fs.rmSync(outputDir, { recursive: true, force: true });
-        }
-
+        // Explicit cleanup implemented instead of undefined cleanup() function
+        fs.unlinkSync(rawVideoPath); // cleanup the original video
+        fs.rmSync(outputDir, { recursive: true, force: true }); // cleanup temporary files
         res.status(500).send("Clip processing failed");
     }
 };
