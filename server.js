@@ -1,8 +1,11 @@
-import express, { json, urlencoded } from "express"
-import { config } from "dotenv"
-import cors from "cors"
 
-// Load environment variable
+
+import express from "express";
+import { config } from "dotenv";
+import cors from "cors";
+import makeclips from "./clipmaker.controller.js";
+
+// Load env variables
 config();
 const app = express();
 
@@ -11,16 +14,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cors());
 
-
 const PORT = process.env.PORT || 8800;
 
-// importing controller
-import makeclips from "./clipmaker.controller.js";
+// Endpoint
+app.post("/makeclip", makeclips);
 
-app.post("/makeclip",makeclips);
-
-
-// start thge server
+// Start server
 app.listen(PORT, () => {
-    console.log(`app is listening on ${PORT}`)
-})
+    console.log(`Server is running on port ${PORT}`);
+});
+
