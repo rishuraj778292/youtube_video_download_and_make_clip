@@ -50,21 +50,22 @@ const makeSingleClip = async (req, res) => {
         return res.status(500).send("Failed to download video");
     }
 
-    const wrapText = (text, maxLen = 30) => {
-        const words = text.split(" ");
-        let result = "", line = "";
-        for (const word of words) {
-            if ((line + word).length <= maxLen) {
-                line += word + " ";
-            } else {
-                result += line.trim() + "\n";
-                line = word + " ";
-            }
+    const splitTextIntoLines = (text, maxWordsPerLine = 6, maxLines = 3) => {
+        const words = text.trim().split(/\s+/);
+        const lines = [];
+
+        for (let i = 0; i < maxLines; i++) {
+            const lineWords = words.splice(0, maxWordsPerLine);
+            lines.push(lineWords.join(" "));
+            if (words.length === 0) break;
         }
-        return result + line.trim();
+
+        while (lines.length < maxLines) lines.push(""); // Pad remaining lines
+        return lines;
     };
 
-    const wrappedText = wrapText(customText);
+    const [line1, line2, line3] = splitTextIntoLines(customText);
+
     const logoPath = path.join(__dirname, "logo.png");
     const outputClipPath = path.join(clipsBase, `clip-${Date.now()}.mp4`);
 
@@ -76,14 +77,19 @@ const makeSingleClip = async (req, res) => {
     const duration = timetoSecond(endTime) - timetoSecond(startTime);
     if (duration <= 0) return res.status(400).send("Invalid time range");
 
-    const safeTextFilePath = path.join(clipsBase, "text.txt");
-    fs.writeFileSync(safeTextFilePath, wrappedText);
-    const escapedTextFilePath = safeTextFilePath.replace(/\\/g, "\\\\").replace(/:/g, "\\:");
+    const escapeText = (text) => text.replace(/'/g, "\\'");
 
-    const ffmpegCmd = `ffmpeg -ss ${startTime} -t ${duration} -i "${rawVideoPath}" -i "${logoPath}" -filter_complex "[0:v]scale=720:-1[vid]; color=color=black:size=720x1280:d=${duration}[bg]; [bg][vid]overlay=(W-w)/2:(H-h)/2[video_on_bg]; [video_on_bg][1:v]overlay=(W-w)/2:60[with_logo]; [with_logo]drawtext=textfile='${escapedTextFilePath}':fontcolor=white:fontsize=30:x=(w-text_w)/2+20:y=200:box=1:boxcolor=black@0.5:boxborderw=10[outv]" -map "[outv]" -map 0:a? -y "${outputClipPath}"`;
+    const ffmpegCmd = `ffmpeg -ss ${startTime} -t ${duration} -i "${rawVideoPath}" -i "${logoPath}" -filter_complex "\
+[0:v]scale=720:-1[vid]; \
+color=color=black:size=720x1280:d=${duration}[bg]; \
+[bg][vid]overlay=(W-w)/2:(H-h)/2[video_on_bg]; \
+[video_on_bg][1:v]overlay=(W-w)/2:60[with_logo]; \
+[with_logo]drawtext=text='${escapeText(line1)}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.5:boxborderw=10[line1]; \
+[line1]drawtext=text='${escapeText(line2)}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=250:box=1:boxcolor=black@0.5:boxborderw=10[line2]; \
+[line2]drawtext=text='${escapeText(line3)}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=300:box=1:boxcolor=black@0.5:boxborderw=10[outv]\
+" -map "[outv]" -map 0:a? -y "${outputClipPath}"`;
 
     exec(ffmpegCmd, (err, stdout, stderr) => {
-        fs.unlinkSync(safeTextFilePath);
         fs.unlinkSync(rawVideoPath);
 
         if (err) {
