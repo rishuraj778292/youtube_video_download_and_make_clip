@@ -136,9 +136,7 @@ const makeSingleClip = async (req, res) => {
     const usernameFontSize = calculateFontSize(usernameText, 35);
     const designationFontSize = calculateFontSize(designationText);
     
-    // Use a bold font variant if available - note: not using fontweight parameter
-    // Different options you might try: Times New Roman Bold, DejaVuSerif-Bold, Georgia Bold
-    const boldFont = "DejaVuSerif-Bold";
+
     
     // Use system serif font with explicit bold variant
     const ffmpegCmd = `ffmpeg -ss ${startTime} -t ${duration} -i "${rawVideoPath}" -i "${logoPath}" -filter_complex "\
@@ -146,11 +144,11 @@ const makeSingleClip = async (req, res) => {
 color=color=black:size=720x1280:d=${duration}[bg]; \
 [bg][vid]overlay=(W-w)/2:(H-h)/2[video_on_bg]; \
 [video_on_bg][1:v]overlay=(W-w)/2:60[with_logo]; \
-[with_logo]drawtext=text='${escapeText(line1)}':fontfile=assets/arial/ARIALBD.TTF:fontcolor=white:fontsize=${line1FontSize}:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.5:boxborderw=10[line1]; \
-[line1]drawtext=text='${escapeText(line2)}':fontfile=assets/arial/ARIALBD.TTF:fontcolor=white:fontsize=${line2FontSize}:x=(w-text_w)/2:y=250:box=1:boxcolor=black@0.5:boxborderw=10[line2]; \
-[line2]drawtext=text='${escapeText(line3)}':fontfile=assets/arial/ARIALBD.TTF:fontcolor=white:fontsize=${line3FontSize}:x=(w-text_w)/2:y=300:box=1:boxcolor=black@0.5:boxborderw=10[line3]; \
-[line3]drawtext=text='${usernameText}':fontfile=assets/arial/ARIALBD.TTF:fontcolor=white:fontsize=${usernameFontSize}:x=(w-text_w)/2:y=(h-300):box=1:boxcolor=black@0.5:boxborderw=10[username]; \
-[username]drawtext=text='${designationText}':fontfile=assets/arial/ARIALBD.TTF:fontcolor=#00e0ff:fontsize=${designationFontSize}:x=(w-text_w)/2:y=(h-250)+10:box=1:boxcolor=black@0.5:boxborderw=10[outv]\
+[with_logo]drawtext=text='${escapeText(line1)}':fontfile=./ARIALBD.TTF:fontcolor=white:fontsize=${line1FontSize}:x=(w-text_w)/2:y=200:box=1:boxcolor=black@0.5:boxborderw=10[line1]; \
+[line1]drawtext=text='${escapeText(line2)}':fontfile=./ARIALBD.TTF:fontcolor=white:fontsize=${line2FontSize}:x=(w-text_w)/2:y=250:box=1:boxcolor=black@0.5:boxborderw=10[line2]; \
+[line2]drawtext=text='${escapeText(line3)}':fontfile=./ARIALBD.TTF:fontcolor=white:fontsize=${line3FontSize}:x=(w-text_w)/2:y=300:box=1:boxcolor=black@0.5:boxborderw=10[line3]; \
+[line3]drawtext=text='${usernameText}':fontfile=./ARIALBD.TTF:fontcolor=white:fontsize=${usernameFontSize}:x=(w-text_w)/2:y=(h-300):box=1:boxcolor=black@0.5:boxborderw=10[username]; \
+[username]drawtext=text='${designationText}':fontfile=./ARIALBD.TTF:fontcolor=#00e0ff:fontsize=${designationFontSize}:x=(w-text_w)/2:y=(h-250)+10:box=1:boxcolor=black@0.5:boxborderw=10[outv]\
 " -map "[outv]" -map 0:a? -y "${outputClipPath}"`;
 
     exec(ffmpegCmd, (err, stdout, stderr) => {
